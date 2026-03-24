@@ -4,24 +4,23 @@ import datetime
 import io
 import os
 
-st.set_page_config(page_title="완벽 자동화 수주업로드", layout="centered")
+st.set_page_config(page_title="완벽 자동화 수주업로드", layout="wide")
 st.title("🚀 원클릭 수주업로드 자동화")
 st.markdown("매번 귀찮게 마스터 엑셀을 올릴 필요 없습니다. **오늘 포털에서 다운받은 발주 원본(RAW) 파일만 던져 넣으세요!**")
 
+# [복구완료] 두 번째 '서식' 시트의 17개 컬럼으로 완벽하게 맞춤
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
 order_date = st.date_input("수주일자 지정", datetime.date.today())
 order_date_str = order_date.strftime("%Y%m%d")
 
-# 1. 파일 이름에 키워드가 포함된 마스터 파일을 찾는 함수
 def find_file(keyword):
     for f in os.listdir('.'):
         if keyword in f and (f.endswith('.xlsx') or f.endswith('.csv')):
             return f
     return None
 
-# 2. GitHub 서버에 있는 마스터 엑셀들을 통째로 암기하는 뇌(Brain) 구축
 @st.cache_data
 def load_brain():
     products, stores, missing = {}, {}, []
@@ -39,7 +38,6 @@ def load_brain():
         xls = pd.ExcelFile(f)
         for sheet in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet)
-            # 모든 시트에서 바코드/제품코드가 보이면 외우기
             if '바코드' in df.columns and '제품코드' in df.columns:
                 for _, r in df.dropna(subset=['바코드']).iterrows():
                     barcode = str(r['바코드']).replace('.0','').strip()
@@ -47,7 +45,6 @@ def load_brain():
                         'mecode': str(r['제품코드']).strip(),
                         'name': str(r['상품명']).strip() if '상품명' in df.columns else ''
                     }
-            # 모든 시트에서 점포명/점포코드가 보이면 외우기
             if '점포명' in df.columns and '점포코드' in df.columns:
                 for _, r in df.dropna(subset=['점포명']).iterrows():
                     store = str(r['점포명']).strip()
@@ -55,7 +52,6 @@ def load_brain():
                     
     return products, stores, missing
 
-# 3. 올라온 RAW 파일이 어느 편의점 건지 스스로 탐지하는 함수
 def detect_and_load(file):
     is_csv = file.name.endswith('.csv')
     df_test = pd.read_csv(file, header=None, nrows=5) if is_csv else pd.read_excel(file, header=None, nrows=5)
@@ -67,7 +63,6 @@ def detect_and_load(file):
     elif val00 in ['주문서 리스트', '문서명', 'ORDERS']:
         return 'K7', (pd.read_csv(file, header=None) if is_csv else pd.read_excel(file, header=None))
     else:
-        # BGF (일반 DATA 또는 ASN 두 줄짜리 헤더 대응)
         header_idx = 1 if '번호' in val00 and '센터' not in str(df_test.iloc[0, 1]) else 0
         return 'BGF', (pd.read_csv(file, header=header_idx) if is_csv else pd.read_excel(file, header=header_idx))
 
@@ -79,7 +74,6 @@ if missing_files:
     for m in missing_files: st.write(f"- {m}")
 
 st.write("---")
-# 단 하나의 업로드 창!
 raw_files = st.file_uploader("📥 오늘 처리할 RAW 파일(DATA, ordview, ORDERS 등)들을 끌어다 놓으세요.", accept_multiple_files=True)
 
 if raw_files and not missing_files:
@@ -158,19 +152,26 @@ if raw_files and not missing_files:
                 df_final['출고구분'] = 0
                 df_final['수주일자'] = order_date_str
                 df_final['부  가   세'] = (pd.to_numeric(df_final['금       액'], errors='coerce').fillna(0) * 0.1).astype(int)
+                df_final['LOT'] = ''
+                df_final['특이사항1'] = ''
+                df_final['Type'] = ''
+                df_final['특이사항2'] = ''
                 df_final.fillna('', inplace=True)
-                df_final.columns = REAL_COLUMNS
 
-                # 결과 출력
+                # 화면 UI 출력 (17열 폼 뷰)
                 st.success(f"✅ {platform} 데이터 변환 완료!")
-                st.dataframe(df_final)
+                st.dataframe(df_final, use_container_width=True)
+                
+                # 엑셀 저장 시에는 특이사항 중복 허용하여 실제 서식과 100% 동일하게
+                df_excel = df_final.copy()
+                df_excel.columns = REAL_COLUMNS
                 
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_final.to_excel(writer, index=False, sheet_name='서식')
+                    df_excel.to_excel(writer, index=False, sheet_name='서식')
                 
                 st.download_button(
-                    label=f"📥 결과 다운로드 ({platform})",
+                    label=f"📥 수주업로드 다운로드 ({platform})",
                     data=output.getvalue(),
                     file_name=f"수주업로드_{order_date_str}_{platform}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
