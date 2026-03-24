@@ -9,7 +9,6 @@ st.set_page_config(page_title="완벽 자동화 수주업로드", layout="wide")
 st.title("🚀 원클릭 수주업로드 자동화")
 st.markdown("매번 귀찮게 마스터 엑셀을 올릴 필요 없습니다. **오늘 포털에서 다운받은 발주 원본(RAW) 파일만 던져 넣으세요!**")
 
-# [복구완료] 두 번째 '서식' 시트의 17개 컬럼으로 완벽하게 맞춤
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
@@ -93,8 +92,6 @@ if raw_files and not missing_files:
         try:
             with st.spinner(f"[{file.name}] 변환 중..."):
                 platform, df_raw = detect_and_load(file)
-                
-                # 데이터 충돌 방지를 위해 빈 데이터프레임에서 직접 구성
                 df_final = pd.DataFrame()
                 
                 if platform == 'BGF':
@@ -117,13 +114,17 @@ if raw_files and not missing_files:
                     
                 elif platform == 'GS':
                     if '납품일자' in df_raw.columns:
-                        df_final['납품일자'] = df_raw['납품일자'].astype(str).str.replace('-', '').replace('nan', '')
+                        df_final['납품일자'] = df_raw['납품일자'].astype(str).str[:10].str.replace('-', '').replace('nan', '')
                     
-                    df_final['발주처'] = df_raw['배송처'].astype(str).str.strip()
+                    # [수정] GS 원본 데이터는 '배송처'가 비어있고 '납품처'에 점포명이 있습니다!
+                    if '납품처' in df_raw.columns:
+                        df_final['발주처'] = df_raw['납품처'].astype(str).str.strip()
+                    else:
+                        df_final['발주처'] = df_raw['배송처'].astype(str).str.strip()
+                        
                     df_final['배송지'] = df_final['발주처']
                     
-                    # 띄어쓰기 달라도 무조건 찾아오게 clean_key 적용
-                    df_final['발주처코드'] = df_raw['배송처'].apply(lambda x: stores_dict.get(clean_key(x), ''))
+                    df_final['발주처코드'] = df_final['발주처'].apply(lambda x: stores_dict.get(clean_key(x), ''))
                     df_final['배송코드'] = df_final['발주처코드']
                     
                     df_final['상품코드'] = df_raw['상품코드'].apply(lambda x: products_dict.get(clean_key(x), {}).get('mecode', ''))
@@ -142,8 +143,9 @@ if raw_files and not missing_files:
                     for idx, row in df_raw.iterrows():
                         col0 = str(row[0]).strip()
                         if col0 == 'ORDERS':
-                            current_date = str(row[7]).strip().replace('-', '').replace('nan', '')
-                        elif str(row[1]).strip().startswith('880'):
+                            current_date = str(row[7]).strip()[:10].replace('-', '').replace('nan', '')
+                        # [안전장치] 바코드 인식이 누락되지 않도록 로직 강화
+                        elif str(row[1]).strip().startswith('880') or str(row[0]).replace('.0', '').isdigit():
                             barcode = clean_key(row[1])
                             store = str(row[3]).strip()
                             price = pd.to_numeric(str(row[7]).replace(',', ''), errors='coerce')
