@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import datetime
+from datetime import datetime, timedelta, timezone
 import io
 import os
 import re
@@ -12,10 +12,18 @@ st.markdown("매번 귀찮게 마스터 엑셀을 올릴 필요 없습니다. **
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
-# [수정] 달력 선택창을 없애고 무조건 오늘 날짜로 자동 세팅되도록 변경
-order_date_str = datetime.date.today().strftime("%Y%m%d")
+# [수정] 서버 시간이 아닌 무조건 '한국 시간(KST)' 기준으로 오늘 날짜(YYYYMMDD) 추출
+kst = timezone(timedelta(hours=9))
+order_date_str = datetime.now(kst).strftime("%Y%m%d")
 
-# [핵심] 눈에 보이지 않는 모든 공백/특수기호 완벽 제거 (100% 매칭용)
+# [핵심] 날짜 및 숫자에서 순수하게 숫자 8자리(YYYYMMDD)만 완벽히 뽑아내는 함수
+def extract_date_8digits(val):
+    if pd.isna(val) or str(val).strip().lower() == 'nan': return ''
+    digits = re.sub(r'\D', '', str(val))
+    if len(digits) >= 8:
+        return digits[:8]
+    return digits
+
 def clean_key(val):
     if pd.isna(val): return ""
     return re.sub(r'\s+', '', str(val).replace('.0', '')).strip()
@@ -42,8 +50,9 @@ def load_brain():
         if not f: continue
         xls = pd.ExcelFile(f)
         for sheet in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet)
-            df.columns = df.columns.astype(str).str.strip() # 컬럼 공백 제거
+            # dtype=str 설정으로 바코드 숫자 깨짐 방지
+            df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
+            df.columns = df.columns.astype(str).str.strip() 
             
             if '바코드' in df.columns and '제품코드' in df.columns:
                 for _, r in df.dropna(subset=['바코드']).iterrows():
@@ -61,20 +70,28 @@ def load_brain():
 
 def detect_and_load(file):
     is_csv = file.name.endswith('.csv')
-    df_test = pd.read_csv(file, header=None, nrows=5) if is_csv else pd.read_excel(file, header=None, nrows=5)
+    df_test = pd.read_csv(file, header=None, nrows=5, dtype=str) if is_csv else pd.read_excel(file, header=None, nrows=5, dtype=str)
+    if df_test.empty: return 'UNKNOWN', pd.DataFrame()
     val00 = str(df_test.iloc[0, 0]).strip()
     
     file.seek(0)
     if val00 == '주문서':
-        df = pd.read_csv(file, header=1) if is_csv else pd.read_excel(file, header=1)
+        df = pd.read_csv(file, header=1, dtype=str) if is_csv else pd.read_excel(file, header=1, dtype=str)
         df.columns = df.columns.astype(str).str.strip()
         return 'GS', df
     elif val00 in ['주문서 리스트', '문서명', 'ORDERS']:
-        return 'K7', (pd.read_csv(file, header=None) if is_csv else pd.read_excel(file, header=None))
+        return 'K7', (pd.read_csv(file, header=None, dtype=str) if is_csv else pd.read_excel(file, header=None, dtype=str))
     else:
-        header_idx = 1 if '번호' in val00 and '센터' not in str(df_test.iloc[0, 1]) else 0
-        df = pd.read_csv(file, header=header_idx) if is_csv else pd.read_excel(file, header=header_idx)
+        # BGF는 무조건 첫 줄을 헤더로 읽은 뒤, 가짜 데이터(두 번째 헤더)를 필터링
+        df = pd.read_csv(file, header=0, dtype=str) if is_csv else pd.read_excel(file, header=0, dtype=str)
         df.columns = df.columns.astype(str).str.strip()
+        
+        # [수정] BGF 가짜 데이터(헤더) 완벽 제거 로직
+        if '상품 코드' in df.columns:
+            df = df[df['상품 코드'].notna()]
+            df = df[~df['상품 코드'].astype(str).str.contains('상품')] # '상품 코드'라는 글자가 들어간 제목 행 삭제
+            df = df[df['상품 코드'].astype(str).str.strip() != '']
+            df = df[df['상품 코드'].astype(str).str.strip().str.lower() != 'nan']
         return 'BGF', df
 
 # ====== 메인 앱 실행 ======
@@ -95,7 +112,8 @@ if raw_files and not missing_files:
                 df_final = pd.DataFrame()
                 
                 if platform == 'BGF':
-                    df_final['납품일자'] = df_raw['납품예정일자'].astype(str).str[:8]
+                    # [수정] 납품일자 및 콤마 숫자 추출 완벽 대응
+                    df_final['납품일자'] = df_raw['납품예정일자'].apply(extract_date_8digits)
                     df_final['발주처'] = df_raw['센터명'].astype(str).str.strip()
                     df_final['배송지'] = df_final['발주처']
                     
@@ -108,13 +126,13 @@ if raw_files and not missing_files:
                     mask = df_final['상품명'] == ''
                     if '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
                     
-                    df_final['UNIT수량'] = pd.to_numeric(df_raw['총수량'], errors='coerce').fillna(0).astype(int)
-                    df_final['UNIT단가'] = pd.to_numeric(df_raw['납품원가'], errors='coerce').fillna(0).astype(int)
+                    df_final['UNIT수량'] = pd.to_numeric(df_raw['총수량'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+                    df_final['UNIT단가'] = pd.to_numeric(df_raw['납품원가'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
                     df_final['금       액'] = df_final['UNIT수량'] * df_final['UNIT단가']
                     
                 elif platform == 'GS':
                     if '납품일자' in df_raw.columns:
-                        df_final['납품일자'] = df_raw['납품일자'].astype(str).str[:10].str.replace('-', '').replace('nan', '')
+                        df_final['납품일자'] = df_raw['납품일자'].apply(extract_date_8digits)
                     
                     if '납품처' in df_raw.columns:
                         df_final['발주처'] = df_raw['납품처'].astype(str).str.strip()
@@ -133,8 +151,8 @@ if raw_files and not missing_files:
                     if '상품명_x' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명_x']
                     elif '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
 
-                    df_final['UNIT단가'] = pd.to_numeric(df_raw['발주단가'], errors='coerce').fillna(0).astype(int)
-                    df_final['금       액'] = pd.to_numeric(df_raw['발주금액'], errors='coerce').fillna(0).astype(int)
+                    df_final['UNIT단가'] = pd.to_numeric(df_raw['발주단가'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+                    df_final['금       액'] = pd.to_numeric(df_raw['발주금액'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
                     df_final['UNIT수량'] = (df_final['금       액'] / df_final['UNIT단가'].replace(0, 1)).astype(int)
 
                 elif platform == 'K7':
@@ -142,7 +160,7 @@ if raw_files and not missing_files:
                     for idx, row in df_raw.iterrows():
                         col0 = str(row[0]).strip()
                         if col0 == 'ORDERS':
-                            current_date = str(row[7]).strip()[:10].replace('-', '').replace('nan', '')
+                            current_date = extract_date_8digits(row[7])
                         elif str(row[1]).strip().startswith('880') or str(row[0]).replace('.0', '').isdigit():
                             barcode = clean_key(row[1])
                             store = str(row[3]).strip()
@@ -187,11 +205,10 @@ if raw_files and not missing_files:
                 df_final = df_final[FINAL_COLUMNS]
                 df_final.fillna('', inplace=True)
 
-                # 화면 UI 출력 (17열 폼 뷰)
                 st.success(f"✅ {platform} 데이터 변환 완료!")
                 st.dataframe(df_final, use_container_width=True)
                 
-                # 엑셀 다운로드 (중복 컬럼명 허용)
+                # 엑셀 다운로드 
                 df_excel = df_final.copy()
                 df_excel.columns = REAL_COLUMNS
                 
