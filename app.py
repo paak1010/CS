@@ -1,24 +1,28 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta, timezone
 import io
 import os
 import re
 
 st.set_page_config(page_title="완벽 자동화 수주업로드", layout="wide")
-st.title("🚀 원클릭 수주업로드 자동화")
-st.markdown("매번 귀찮게 마스터 엑셀을 올릴 필요 없습니다. **오늘 포털에서 다운받은 발주 원본(RAW) 파일만 던져 넣으세요!** (날짜도 데이터에서 자동으로 추출하여 변환합니다.)")
+st.title("🚀 원클릭 수주업로드 자동화 (통합본)")
+st.markdown("편의점 3사(BGF/GS/세븐일레븐)의 발주 원본 파일들을 **한꺼번에 던져 넣으면, 하나의 통합된 사내 수주업로드 엑셀로 합쳐서 뽑아줍니다.**")
 
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
-# [핵심] 긴 숫자(20260325110000)나 다른 형태의 날짜를 무조건 'YYYY-MM-DD' 형태로 예쁘게 뽑아주는 함수
+# [핵심] 한국 시간(KST) 기준 오늘 날짜 (YYYY-MM-DD 포맷) -> BGF 수주일자용
+kst = timezone(timedelta(hours=9))
+today_date_str = datetime.now(kst).strftime("%Y-%m-%d")
+today_compact_str = datetime.now(kst).strftime("%Y%m%d")
+
+# 긴 숫자를 YYYY-MM-DD로 변환하는 함수
 def format_date_yyyy_mm_dd(val):
     if pd.isna(val) or str(val).strip().lower() in ['nan', '']: 
         return ''
-    # 숫자만 싹 다 발라냄
     digits = re.sub(r'\D', '', str(val))
     if len(digits) >= 8:
-        # 무조건 앞 8자리를 잘라서 YYYY-MM-DD로 조립
         return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
     return str(val)
 
@@ -98,9 +102,13 @@ if missing_files:
     for m in missing_files: st.write(f"- {m}")
 
 st.write("---")
-raw_files = st.file_uploader("📥 오늘 처리할 RAW 파일(DATA, ordview, ORDERS 등)들을 끌어다 놓으세요.", accept_multiple_files=True)
+raw_files = st.file_uploader("📥 오늘 처리할 RAW 파일(DATA, ordview, ORDERS 등) 여러 개를 한 번에 끌어다 놓으세요.", accept_multiple_files=True)
 
 if raw_files and not missing_files:
+    
+    # [수정] 각각의 데이터프레임을 모아둘 통합 리스트 생성
+    combined_dfs = []
+    
     for file in raw_files:
         try:
             with st.spinner(f"[{file.name}] 변환 중..."):
@@ -108,9 +116,8 @@ if raw_files and not missing_files:
                 df_final = pd.DataFrame()
                 
                 if platform == 'BGF':
-                    # [수정] 수주일자(수정일자)와 납품일자(납품예정일자)를 데이터에서 직접 추출하여 변환
-                    order_col = '수정일자' if '수정일자' in df_raw.columns else '발주일자'
-                    df_final['수주일자'] = df_raw.get(order_col, '').apply(format_date_yyyy_mm_dd)
+                    # [요청 반영] BGF는 데이터 무시하고 무조건 오늘 날짜(YYYY-MM-DD)로 세팅!
+                    df_final['수주일자'] = today_date_str
                     df_final['납품일자'] = df_raw.get('납품예정일자', '').apply(format_date_yyyy_mm_dd)
                     
                     df_final['발주처'] = df_raw['센터명'].astype(str).str.strip()
@@ -130,7 +137,6 @@ if raw_files and not missing_files:
                     df_final['금       액'] = df_final['UNIT수량'] * df_final['UNIT단가']
                     
                 elif platform == 'GS':
-                    # [수정] GS의 발주일자와 납품일자를 각각 추출하여 변환
                     df_final['수주일자'] = df_raw.get('발주일자', '').apply(format_date_yyyy_mm_dd)
                     df_final['납품일자'] = df_raw.get('납품일자', '').apply(format_date_yyyy_mm_dd)
                     
@@ -159,7 +165,6 @@ if raw_files and not missing_files:
                     records, current_order_date, current_delivery_date = [], "", ""
                     for idx, row in df_raw.iterrows():
                         col0 = str(row[0]).strip()
-                        # [수정] K7은 ORDERS 행에 주문일(4번째 칸)과 납품일(7번째 칸)이 같이 적혀있음
                         if col0 == 'ORDERS':
                             current_order_date = format_date_yyyy_mm_dd(row[4]) if len(row) > 4 else ""
                             current_delivery_date = format_date_yyyy_mm_dd(row[7]) if len(row) > 7 else ""
@@ -194,41 +199,51 @@ if raw_files and not missing_files:
                         df_final['UNIT단가'] = df_k7['UNIT단가']
                         df_final['금       액'] = df_k7['금       액']
 
-                # --- 공통 포맷 최종 마감 ---
-                df_final['출고구분'] = 0
-                
-                if '금       액' in df_final.columns:
-                    df_final['부  가   세'] = (pd.to_numeric(df_final['금       액'], errors='coerce').fillna(0) * 0.1).astype(int)
-                
-                # 빈 컬럼들 뼈대 채우기
-                for col in FINAL_COLUMNS:
-                    if col not in df_final.columns:
-                        df_final[col] = ''
-                
-                # 순서 정렬 및 공백 처리
-                df_final = df_final[FINAL_COLUMNS]
-                df_final.fillna('', inplace=True)
+                # 개별 파일 변환 성공 알림 및 리스트 추가
+                st.success(f"✅ {file.name} ({platform}) 변환 성공!")
+                combined_dfs.append(df_final)
 
-                st.success(f"✅ {platform} 데이터 변환 완료!")
-                st.dataframe(df_final, use_container_width=True)
-                
-                # 엑셀 다운로드 
-                df_excel = df_final.copy()
-                df_excel.columns = REAL_COLUMNS
-                
-                # [안내] 다운로드 버튼에 오늘 날짜 자동 표기
-                today_str = pd.Timestamp.today().strftime("%Y%m%d")
-                
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_excel.to_excel(writer, index=False, sheet_name='서식')
-                
-                st.download_button(
-                    label=f"📥 수주업로드 다운로드 ({platform})",
-                    data=output.getvalue(),
-                    file_name=f"수주업로드_{today_str}_{platform}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"dl_{file.name}"
-                )
         except Exception as e:
             st.error(f"❌ {file.name} 처리 중 오류가 발생했습니다: {e}")
+
+    # [수정] 여러 플랫폼의 데이터를 하나로 합치고 최종 포맷팅 진행
+    if combined_dfs:
+        st.write("---")
+        st.subheader("📊 편의점 3사 통합 수주업로드 데이터")
+        
+        # 데이터프레임 위아래로 합치기
+        df_combined = pd.concat(combined_dfs, ignore_index=True)
+        
+        # 통합 공통 포맷 마감
+        df_combined['출고구분'] = 0
+        if '금       액' in df_combined.columns:
+            df_combined['부  가   세'] = (pd.to_numeric(df_combined['금       액'], errors='coerce').fillna(0) * 0.1).astype(int)
+        
+        # 빈 컬럼들 뼈대 채우기
+        for col in FINAL_COLUMNS:
+            if col not in df_combined.columns:
+                df_combined[col] = ''
+        
+        # 순서 정렬 및 공백 처리
+        df_combined = df_combined[FINAL_COLUMNS]
+        df_combined.fillna('', inplace=True)
+
+        # 통합본 화면 출력
+        st.dataframe(df_combined, use_container_width=True)
+        
+        # 통합본 엑셀 생성
+        df_excel = df_combined.copy()
+        df_excel.columns = REAL_COLUMNS
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_excel.to_excel(writer, index=False, sheet_name='서식')
+        
+        # 단 하나의 엑셀 다운로드 버튼
+        st.download_button(
+            label=f"📥 통합 수주업로드 일괄 다운로드 (총 {len(df_combined)}건)",
+            data=output.getvalue(),
+            file_name=f"통합_수주업로드_{today_compact_str}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary" # 버튼 색상 강조
+        )
