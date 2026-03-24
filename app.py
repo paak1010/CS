@@ -12,8 +12,8 @@ st.markdown("매번 귀찮게 마스터 엑셀을 올릴 필요 없습니다. **
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
-order_date = st.date_input("수주일자 지정", datetime.date.today())
-order_date_str = order_date.strftime("%Y%m%d")
+# [수정] 달력 선택창을 없애고 무조건 오늘 날짜로 자동 세팅되도록 변경
+order_date_str = datetime.date.today().strftime("%Y%m%d")
 
 # [핵심] 눈에 보이지 않는 모든 공백/특수기호 완벽 제거 (100% 매칭용)
 def clean_key(val):
@@ -116,7 +116,6 @@ if raw_files and not missing_files:
                     if '납품일자' in df_raw.columns:
                         df_final['납품일자'] = df_raw['납품일자'].astype(str).str[:10].str.replace('-', '').replace('nan', '')
                     
-                    # [수정] GS 원본 데이터는 '배송처'가 비어있고 '납품처'에 점포명이 있습니다!
                     if '납품처' in df_raw.columns:
                         df_final['발주처'] = df_raw['납품처'].astype(str).str.strip()
                     else:
@@ -144,7 +143,6 @@ if raw_files and not missing_files:
                         col0 = str(row[0]).strip()
                         if col0 == 'ORDERS':
                             current_date = str(row[7]).strip()[:10].replace('-', '').replace('nan', '')
-                        # [안전장치] 바코드 인식이 누락되지 않도록 로직 강화
                         elif str(row[1]).strip().startswith('880') or str(row[0]).replace('.0', '').isdigit():
                             barcode = clean_key(row[1])
                             store = str(row[3]).strip()
