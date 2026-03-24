@@ -106,7 +106,6 @@ raw_files = st.file_uploader("📥 오늘 처리할 RAW 파일(DATA, ordview, OR
 
 if raw_files and not missing_files:
     
-    # [수정] 각각의 데이터프레임을 모아둘 통합 리스트 생성
     combined_dfs = []
     
     for file in raw_files:
@@ -116,9 +115,9 @@ if raw_files and not missing_files:
                 df_final = pd.DataFrame()
                 
                 if platform == 'BGF':
-                    # [요청 반영] BGF는 데이터 무시하고 무조건 오늘 날짜(YYYY-MM-DD)로 세팅!
-                    df_final['수주일자'] = today_date_str
+                    # [오류 해결] 납품일자 데이터를 먼저 넣어 표의 길이를 잡아준 뒤 고정값을 넣습니다.
                     df_final['납품일자'] = df_raw.get('납품예정일자', '').apply(format_date_yyyy_mm_dd)
+                    df_final['수주일자'] = today_date_str  # <--- 이제 증발하지 않습니다!
                     
                     df_final['발주처'] = df_raw['센터명'].astype(str).str.strip()
                     df_final['배송지'] = df_final['발주처']
@@ -137,8 +136,8 @@ if raw_files and not missing_files:
                     df_final['금       액'] = df_final['UNIT수량'] * df_final['UNIT단가']
                     
                 elif platform == 'GS':
-                    df_final['수주일자'] = df_raw.get('발주일자', '').apply(format_date_yyyy_mm_dd)
                     df_final['납품일자'] = df_raw.get('납품일자', '').apply(format_date_yyyy_mm_dd)
+                    df_final['수주일자'] = df_raw.get('발주일자', '').apply(format_date_yyyy_mm_dd)
                     
                     if '납품처' in df_raw.columns:
                         df_final['발주처'] = df_raw['납품처'].astype(str).str.strip()
@@ -187,8 +186,8 @@ if raw_files and not missing_files:
                     
                     df_k7 = pd.DataFrame(records)
                     if not df_k7.empty:
-                        df_final['수주일자'] = df_k7['수주일자']
                         df_final['납품일자'] = df_k7['납품일자']
+                        df_final['수주일자'] = df_k7['수주일자']
                         df_final['발주처코드'] = '81032000'
                         df_final['발주처'] = "(주)코리아세븐"
                         df_final['배송지'] = df_k7['점포명']
@@ -206,7 +205,7 @@ if raw_files and not missing_files:
         except Exception as e:
             st.error(f"❌ {file.name} 처리 중 오류가 발생했습니다: {e}")
 
-    # [수정] 여러 플랫폼의 데이터를 하나로 합치고 최종 포맷팅 진행
+    # 여러 플랫폼의 데이터를 하나로 합치고 최종 포맷팅 진행
     if combined_dfs:
         st.write("---")
         st.subheader("📊 편의점 3사 통합 수주업로드 데이터")
