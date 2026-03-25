@@ -7,7 +7,7 @@ import re
 from PIL import Image
 
 # --- 1. 페이지 및 로고 기본 설정 ---
-# 절대경로와 상대경로 2가지를 모두 체크하여 로고를 기필코 찾아냅니다.
+# 로고 절대 경로 (이 경로에 파일이 있으면 무조건 로고가 뜹니다!)
 logo_path_abs = r"C:\Users\jhpark\OneDrive - 맨소래담\바탕 화면\편의점 & 샘플\로고.webp"
 logo_path_rel = "로고.webp"
 
@@ -23,9 +23,10 @@ if valid_logo_path:
 else:
     page_icon_img = "🏪"
 
-st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon=page_icon_img, layout="wide")
+# 사이드바가 기본적으로 열려있도록 initial_sidebar_state="expanded" 설정
+st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon=page_icon_img, layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. 커스텀 CSS (여백 및 불필요 요소 제거) ---
+# --- 2. 커스텀 CSS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} 
@@ -37,13 +38,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 로고 및 타이틀 영역 ---
-col1, col2 = st.columns([1, 8])
+# --- 3. 로고 및 타이틀 영역 (메인 화면) ---
+col1, col2 = st.columns([1, 9])
 with col1:
     if valid_logo_path:
-        st.image(Image.open(valid_logo_path), use_container_width=True)
+        st.image(Image.open(valid_logo_path), width=80)
     else:
-        st.error("로고 파일 없음")
+        st.write("🏢 **COMPANY**")
 
 with col2:
     st.title("🏪 편의점 수주업로드 자동화 시스템")
@@ -51,11 +52,14 @@ with col2:
 
 st.divider() 
 
-# --- 4. 메인 화면 중앙 안내 영역 (사이드바 대체) ---
-info_col, upload_col = st.columns([1, 2], gap="large")
-
-with info_col:
-    st.subheader("💡 사용 안내")
+# --- 4. 왼쪽 사이드바 (부활!) ---
+with st.sidebar:
+    # 사이드바 맨 위에도 예쁘게 로고 배치
+    if valid_logo_path:
+        st.image(Image.open(valid_logo_path), use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+    st.header("💡 사용 안내")
     st.info("""
     1. 각 편의점 사이트에서 엑셀 데이터 다운로드
     2. GS와 코리아세븐 엑셀 파일은 엑셀 버전이 다르므로 다른 이름으로 저장
@@ -136,13 +140,13 @@ def detect_and_load(file):
 
 products_dict, stores_dict, missing_files = load_brain()
 
-with upload_col:
-    if missing_files:
-        st.error("❌ 서버에 기준표(마스터 엑셀)가 없습니다! 폴더에 파일이 있는지 확인해주세요.")
-        for m in missing_files: st.write(f"- {m}")
-    else:
-        st.subheader("📥 원본(RAW) 파일 업로드")
-        raw_files = st.file_uploader("오늘 처리할 RAW 파일들을 한 번에 모두 끌어다 놓으세요.", accept_multiple_files=True)
+# 메인 화면 업로드 영역
+st.subheader("📥 원본(RAW) 파일 업로드")
+if missing_files:
+    st.error("❌ 서버에 기준표(마스터 엑셀)가 없습니다! 폴더에 파일이 있는지 확인해주세요.")
+    for m in missing_files: st.write(f"- {m}")
+else:
+    raw_files = st.file_uploader("오늘 처리할 RAW 파일들을 한 번에 모두 끌어다 놓으세요.", accept_multiple_files=True)
 
 if raw_files and not missing_files:
     combined_dfs = []
