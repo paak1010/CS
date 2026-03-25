@@ -38,9 +38,6 @@ st.divider()
 
 # --- 5. 왼쪽 사이드바 (사용 설명서) ---
 with st.sidebar:
-    # 사이드바 안쪽 상단에도 로고를 하나 띄워줍니다 (열었을 때 예뻐보이게)
-    st.image(LOGO_URL, use_container_width=True)
-    st.markdown("<br>", unsafe_allow_html=True)
     
     st.header("💡 사용 안내")
     st.info("""
