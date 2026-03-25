@@ -4,29 +4,15 @@ from datetime import datetime, timedelta, timezone
 import io
 import os
 import re
-from PIL import Image
 
-# --- 1. 페이지 및 로고 기본 설정 ---
-# 로고 절대 경로 (이 경로에 파일이 있으면 무조건 로고가 뜹니다!)
-logo_path_abs = r"C:\Users\jhpark\OneDrive - 맨소래담\바탕 화면\편의점 & 샘플\로고.webp"
-logo_path_rel = "로고.webp"
+# --- 1. 웹 로고 주소 설정 ---
+LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
 
-if os.path.exists(logo_path_abs):
-    valid_logo_path = logo_path_abs
-elif os.path.exists(logo_path_rel):
-    valid_logo_path = logo_path_rel
-else:
-    valid_logo_path = None
+# --- 2. 페이지 기본 설정 (사이드바 기본 닫힘 적용!) ---
+# initial_sidebar_state="collapsed" 를 넣어서 처음엔 무조건 접혀있게 만듭니다.
+st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide", initial_sidebar_state="collapsed")
 
-if valid_logo_path:
-    page_icon_img = Image.open(valid_logo_path)
-else:
-    page_icon_img = "🏪"
-
-# 사이드바가 기본적으로 열려있도록 initial_sidebar_state="expanded" 설정
-st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon=page_icon_img, layout="wide", initial_sidebar_state="expanded")
-
-# --- 2. 커스텀 CSS ---
+# --- 3. 커스텀 CSS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} 
@@ -38,13 +24,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 로고 및 타이틀 영역 (메인 화면) ---
-col1, col2 = st.columns([1, 9])
+# --- 4. 로고 및 타이틀 영역 (비율 조정으로 덮어짐 방지) ---
+# 로고 칸(1.5)과 제목 칸(8.5) 비율을 조정해서 사이드바가 열려도 밀려나게 세팅
+col1, col2 = st.columns([1.5, 8.5])
 with col1:
-    if valid_logo_path:
-        st.image(Image.open(valid_logo_path), width=80)
-    else:
-        st.write("🏢 **COMPANY**")
+    st.image(LOGO_URL, use_container_width=True) # 크기를 폭에 맞게 자동 조절
 
 with col2:
     st.title("🏪 편의점 수주업로드 자동화 시스템")
@@ -52,13 +36,12 @@ with col2:
 
 st.divider() 
 
-# --- 4. 왼쪽 사이드바 (부활!) ---
+# --- 5. 왼쪽 사이드바 (사용 설명서) ---
 with st.sidebar:
-    # 사이드바 맨 위에도 예쁘게 로고 배치
-    if valid_logo_path:
-        st.image(Image.open(valid_logo_path), use_container_width=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-        
+    # 사이드바 안쪽 상단에도 로고를 하나 띄워줍니다 (열었을 때 예뻐보이게)
+    st.image(LOGO_URL, use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     st.header("💡 사용 안내")
     st.info("""
     1. 각 편의점 사이트에서 엑셀 데이터 다운로드
@@ -70,7 +53,7 @@ with st.sidebar:
     st.success("✅ **마스터 파일 연동 완료**\n(서버에서 제품/점포명 자동 참조 중)")
     st.caption("※ BGF 수주일자는 무조건 오늘 날짜로 자동 세팅됩니다.")
 
-# --- 5. 데이터 처리 로직 및 업로드 영역 ---
+# --- 6. 데이터 처리 로직 및 업로드 영역 ---
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
@@ -260,6 +243,6 @@ if raw_files and not missing_files:
                 type="primary"
             )
 
-# --- 6. 하단 개발자 서명 ---
+# --- 7. 하단 개발자 서명 ---
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 st.markdown("<div style='text-align: center; color: #a0a0a0; font-size: 0.9rem; font-family: sans-serif;'>developed by Jay</div>", unsafe_allow_html=True)
