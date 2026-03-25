@@ -211,4 +211,4 @@ else:
             st.write("---")
             st.subheader("📊 편의점 통합 데이터 미리보기")
             
-            df_combined = pd.concat(combined_
+            df_combined = pd.concat(combined_)
