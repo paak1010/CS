@@ -6,8 +6,10 @@ import os
 import re
 from PIL import Image
 
-# --- 1. 페이지 및 로고 기본 설정 (가장 위에 와야 함) ---
-logo_path = "로고.webp"
+# --- 1. 페이지 및 로고 기본 설정 ---
+# [수정됨] 알려주신 로고 파일의 절대 경로를 직접 지정 (오류 방지를 위해 r"" 사용)
+logo_path = r"C:\Users\jhpark\OneDrive - 맨소래담\바탕 화면\편의점 & 샘플\로고.webp"
+
 if os.path.exists(logo_path):
     page_icon_img = Image.open(logo_path)
 else:
@@ -15,12 +17,11 @@ else:
 
 st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon=page_icon_img, layout="wide")
 
-# --- 2. 커스텀 CSS (사이드바 버튼 복구!) ---
+# --- 2. 커스텀 CSS ---
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;} /* 우측 상단 햄버거 메뉴 숨기기 */
-    footer {visibility: hidden;}    /* 하단 워터마크 숨기기 */
-    /* header {visibility: hidden;} <- 사이드바 버튼을 숨기던 범인 검거 (삭제) */
+    #MainMenu {visibility: hidden;} 
+    footer {visibility: hidden;}    
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
@@ -31,6 +32,7 @@ st.markdown("""
 # --- 3. 로고 및 타이틀 영역 ---
 col1, col2 = st.columns([1, 9])
 with col1:
+    # [수정됨] 무조건 지정한 경로의 로고를 가져오도록 설정
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
         st.image(logo, width=80)
@@ -41,7 +43,7 @@ with col2:
     st.title("🏪 편의점 수주업로드 자동화 시스템")
     st.markdown("편의점 3사(BGF, GS, 세븐일레븐) Raw Data를 표준 양식으로 자동 변환합니다.")
 
-st.divider()
+st.divider() 
 
 # --- 4. 왼쪽 사이드바 ---
 with st.sidebar:
@@ -58,6 +60,7 @@ with st.sidebar:
     """)
     st.success("✅ **마스터 파일 연동 완료**\n(서버에서 제품/점포명 자동 참조 중)")
     st.caption("BGF 수주일자는 오늘 날짜로 자동 세팅됩니다.")
+
 
 # --- 5. 데이터 처리 로직 ---
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
@@ -246,3 +249,7 @@ else:
                     use_container_width=True,
                     type="primary"
                 )
+
+# --- 6. 하단 개발자 서명 (developed by Jay) ---
+st.markdown("<br><br><br>", unsafe_allow_html=True) # 여백 넉넉히 주기
+st.markdown("<div style='text-align: center; color: #a0a0a0; font-size: 0.9rem; font-family: sans-serif;'>developed by Jay</div>", unsafe_allow_html=True)
