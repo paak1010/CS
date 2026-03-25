@@ -7,21 +7,20 @@ import re
 from PIL import Image
 
 # --- 1. 페이지 및 로고 기본 설정 (가장 위에 와야 함) ---
-# 같은 폴더에 있는 '로고.webp' 파일을 찾아 브라우저 탭 아이콘으로 설정합니다.
 logo_path = "로고.webp"
 if os.path.exists(logo_path):
     page_icon_img = Image.open(logo_path)
 else:
-    page_icon_img = "🏪" # 파일이 없으면 임시로 편의점 이모지 사용
+    page_icon_img = "🏪"
 
 st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon=page_icon_img, layout="wide")
 
-# --- 2. 커스텀 CSS (불필요한 기본 메뉴 숨기기 & 여백 조정) ---
+# --- 2. 커스텀 CSS (사이드바 버튼 복구!) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} /* 우측 상단 햄버거 메뉴 숨기기 */
     footer {visibility: hidden;}    /* 하단 워터마크 숨기기 */
-    header {visibility: hidden;}    /* 상단 여백 숨기기 */
+    /* header {visibility: hidden;} <- 사이드바 버튼을 숨기던 범인 검거 (삭제) */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
@@ -30,7 +29,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. 로고 및 타이틀 영역 ---
-col1, col2 = st.columns([1, 9]) # 1:9 비율로 화면 분할
+col1, col2 = st.columns([1, 9])
 with col1:
     if os.path.exists(logo_path):
         logo = Image.open(logo_path)
@@ -42,9 +41,9 @@ with col2:
     st.title("🏪 편의점 수주업로드 자동화 시스템")
     st.markdown("편의점 3사(BGF, GS, 세븐일레븐) Raw Data를 표준 양식으로 자동 변환합니다.")
 
-st.divider() # 가로 구분선
+st.divider()
 
-# --- 4. 왼쪽 사이드바 (사용 설명서 및 상태 표시) ---
+# --- 4. 왼쪽 사이드바 ---
 with st.sidebar:
     if os.path.exists(logo_path):
         st.image(Image.open(logo_path), use_container_width=True)
@@ -60,8 +59,7 @@ with st.sidebar:
     st.success("✅ **마스터 파일 연동 완료**\n(서버에서 제품/점포명 자동 참조 중)")
     st.caption("BGF 수주일자는 오늘 날짜로 자동 세팅됩니다.")
 
-
-# --- 여기서부터는 기존과 동일한 데이터 처리 로직 ---
+# --- 5. 데이터 처리 로직 ---
 FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
 REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
@@ -212,7 +210,6 @@ else:
             except Exception as e:
                 st.error(f"❌ {file.name} 처리 중 오류가 발생했습니다: {e}")
 
-        # --- 잘려있던 하단 통합 데이터 합치기 및 다운로드 부분 복구 ---
         if combined_dfs:
             st.write("---")
             st.subheader("📊 편의점 통합 데이터 미리보기")
