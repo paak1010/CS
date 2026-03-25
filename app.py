@@ -56,7 +56,6 @@ kst = timezone(timedelta(hours=9))
 today_date_str = datetime.now(kst).strftime("%Y%m%d")
 today_compact_str = datetime.now(kst).strftime("%Y%m%d")
 
-# 하이픈(-) 제거한 8자리 날짜 포맷 함수
 def format_date_yyyymmdd(val):
     if pd.isna(val) or str(val).strip().lower() in ['nan', '']: return ''
     digits = re.sub(r'\D', '', str(val))
@@ -220,6 +219,14 @@ if raw_files and not missing_files:
         
         df_excel = df_combined.copy()
         df_excel.columns = REAL_COLUMNS
+        
+        # --- 추가된 핵심 로직: 특정 컬럼을 엑셀에서 순수 숫자로 강제 변환 ---
+        cols_to_numeric = ['수주일자', '납품일자', '발주처코드', '배송코드']
+        for col in cols_to_numeric:
+            if col in df_excel.columns:
+                # errors='coerce'로 문자는 무시하고, astype('Int64')를 써서 빈 칸이 있어도 .0 소수점이 안 붙게 함
+                df_excel[col] = pd.to_numeric(df_excel[col], errors='coerce').astype('Int64')
+        # -----------------------------------------------------------------
         
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
