@@ -9,7 +9,6 @@ import re
 LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
 
 # --- 2. 페이지 기본 설정 (사이드바 기본 닫힘 적용!) ---
-# initial_sidebar_state="collapsed" 를 넣어서 처음엔 무조건 접혀있게 만듭니다.
 st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide", initial_sidebar_state="collapsed")
 
 # --- 3. 커스텀 CSS ---
@@ -25,10 +24,9 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 4. 로고 및 타이틀 영역 (비율 조정으로 덮어짐 방지) ---
-# 로고 칸(1.5)과 제목 칸(8.5) 비율을 조정해서 사이드바가 열려도 밀려나게 세팅
 col1, col2 = st.columns([1.5, 8.5])
 with col1:
-    st.image(LOGO_URL, use_container_width=True) # 크기를 폭에 맞게 자동 조절
+    st.image(LOGO_URL, use_container_width=True) 
 
 with col2:
     st.title("🏪 편의점 수주업로드 자동화 시스템")
@@ -38,7 +36,6 @@ st.divider()
 
 # --- 5. 왼쪽 사이드바 (사용 설명서) ---
 with st.sidebar:
-    
     st.header("💡 사용 안내")
     st.info("""
     1. 각 편의점 사이트에서 엑셀 데이터 다운로드
@@ -48,21 +45,22 @@ with st.sidebar:
     5. 서식업로드 파일 양식에 맞추어 Ctrl+C, Ctrl+Alt+V (값 붙여넣기)
     """)
     st.success("✅ **마스터 파일 연동 완료**\n(서버에서 제품/점포명 자동 참조 중)")
-    st.caption("※ BGF 수주일자는 무조건 오늘 날짜로 자동 세팅됩니다.")
+    st.caption("※ 모든 편의점의 수주일자는 무조건 오늘 날짜로 자동 세팅됩니다.")
     st.caption("Developed by Jay")
 
 # --- 6. 데이터 처리 로직 및 업로드 영역 ---
-FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
-REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금       액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
+FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금        액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
+REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금        액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
 kst = timezone(timedelta(hours=9))
 today_date_str = datetime.now(kst).strftime("%Y%m%d")
 today_compact_str = datetime.now(kst).strftime("%Y%m%d")
 
-def format_date_yyyy_mm_dd(val):
+# 하이픈(-) 제거한 8자리 날짜 포맷 함수
+def format_date_yyyymmdd(val):
     if pd.isna(val) or str(val).strip().lower() in ['nan', '']: return ''
     digits = re.sub(r'\D', '', str(val))
-    if len(digits) >= 8: return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
+    if len(digits) >= 8: return digits[:8]
     return str(val)
 
 def clean_key(val):
@@ -138,7 +136,7 @@ if raw_files and not missing_files:
                 df_final = pd.DataFrame()
                 
                 if platform == 'BGF':
-                    df_final['납품일자'] = df_raw.get('납품예정일자', '').apply(format_date_yyyy_mm_dd)
+                    df_final['납품일자'] = df_raw.get('납품예정일자', pd.Series(dtype=str)).apply(format_date_yyyymmdd)
                     df_final['수주일자'] = today_date_str
                     df_final['발주처'] = df_raw['센터명'].astype(str).str.strip()
                     df_final['배송지'] = df_final['발주처']
@@ -150,11 +148,11 @@ if raw_files and not missing_files:
                     if '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
                     df_final['UNIT수량'] = pd.to_numeric(df_raw['총수량'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
                     df_final['UNIT단가'] = pd.to_numeric(df_raw['납품원가'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-                    df_final['금       액'] = df_final['UNIT수량'] * df_final['UNIT단가']
+                    df_final['금        액'] = df_final['UNIT수량'] * df_final['UNIT단가']
                     
                 elif platform == 'GS':
-                    df_final['납품일자'] = df_raw.get('납품일자', '').apply(format_date_yyyy_mm_dd)
-                    df_final['수주일자'] = df_raw.get('발주일자', '').apply(format_date_yyyy_mm_dd)
+                    df_final['납품일자'] = df_raw.get('납품일자', pd.Series(dtype=str)).apply(format_date_yyyymmdd)
+                    df_final['수주일자'] = today_date_str
                     if '납품처' in df_raw.columns: df_final['발주처'] = df_raw['납품처'].astype(str).str.strip()
                     else: df_final['발주처'] = df_raw['배송처'].astype(str).str.strip()
                     df_final['배송지'] = df_final['발주처']
@@ -166,23 +164,22 @@ if raw_files and not missing_files:
                     if '상품명_x' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명_x']
                     elif '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
                     df_final['UNIT단가'] = pd.to_numeric(df_raw['발주단가'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-                    df_final['금       액'] = pd.to_numeric(df_raw['발주금액'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
-                    df_final['UNIT수량'] = (df_final['금       액'] / df_final['UNIT단가'].replace(0, 1)).astype(int)
+                    df_final['금        액'] = pd.to_numeric(df_raw['발주금액'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+                    df_final['UNIT수량'] = (df_final['금        액'] / df_final['UNIT단가'].replace(0, 1)).astype(int)
 
                 elif platform == 'K7':
-                    records, current_order_date, current_delivery_date = [], "", ""
+                    records, current_delivery_date = [], ""
                     for idx, row in df_raw.iterrows():
                         col0 = str(row[0]).strip()
                         if col0 == 'ORDERS':
-                            current_order_date = format_date_yyyy_mm_dd(row[4]) if len(row) > 4 else ""
-                            current_delivery_date = format_date_yyyy_mm_dd(row[7]) if len(row) > 7 else ""
+                            current_delivery_date = format_date_yyyymmdd(row[7]) if len(row) > 7 else ""
                         elif str(row[1]).strip().startswith('880') or str(row[0]).replace('.0', '').isdigit():
                             barcode = clean_key(row[1])
                             store = str(row[3]).strip()
                             price = pd.to_numeric(str(row[7]).replace(',', ''), errors='coerce')
                             total = pd.to_numeric(str(row[8]).replace(',', ''), errors='coerce')
                             qty = int(total / price) if pd.notna(price) and price > 0 else 0
-                            records.append({'수주일자': current_order_date, '납품일자': current_delivery_date, '바코드': barcode, '점포명': store, 'UNIT단가': price if pd.notna(price) else 0, '금       액': total if pd.notna(total) else 0, 'UNIT수량': qty})
+                            records.append({'수주일자': today_date_str, '납품일자': current_delivery_date, '바코드': barcode, '점포명': store, 'UNIT단가': price if pd.notna(price) else 0, '금        액': total if pd.notna(total) else 0, 'UNIT수량': qty})
                     
                     df_k7 = pd.DataFrame(records)
                     if not df_k7.empty:
@@ -196,7 +193,7 @@ if raw_files and not missing_files:
                         df_final['상품명'] = df_k7['바코드'].apply(lambda x: products_dict.get(x, {}).get('name', ''))
                         df_final['UNIT수량'] = df_k7['UNIT수량']
                         df_final['UNIT단가'] = df_k7['UNIT단가']
-                        df_final['금       액'] = df_k7['금       액']
+                        df_final['금        액'] = df_k7['금        액']
 
                 st.toast(f"✅ {file.name} ({platform}) 변환 성공!")
                 combined_dfs.append(df_final)
@@ -210,8 +207,8 @@ if raw_files and not missing_files:
         
         df_combined = pd.concat(combined_dfs, ignore_index=True)
         df_combined['출고구분'] = 0
-        if '금       액' in df_combined.columns:
-            df_combined['부  가   세'] = (pd.to_numeric(df_combined['금       액'], errors='coerce').fillna(0) * 0.1).astype(int)
+        if '금        액' in df_combined.columns:
+            df_combined['부  가   세'] = (pd.to_numeric(df_combined['금        액'], errors='coerce').fillna(0) * 0.1).astype(int)
         
         for col in FINAL_COLUMNS:
             if col not in df_combined.columns: df_combined[col] = ''
