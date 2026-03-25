@@ -6,8 +6,15 @@ import os
 import re
 from PIL import Image
 
-# --- 1. 페이지 기본 설정 (가장 위에 와야 함) ---
-st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide")
+# --- 1. 페이지 및 로고 기본 설정 (가장 위에 와야 함) ---
+# 같은 폴더에 있는 '로고.webp' 파일을 찾아 브라우저 탭 아이콘으로 설정합니다.
+logo_path = "로고.webp"
+if os.path.exists(logo_path):
+    page_icon_img = Image.open(logo_path)
+else:
+    page_icon_img = "🏪" # 파일이 없으면 임시로 편의점 이모지 사용
+
+st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon=page_icon_img, layout="wide")
 
 # --- 2. 커스텀 CSS (불필요한 기본 메뉴 숨기기 & 여백 조정) ---
 st.markdown("""
@@ -25,12 +32,11 @@ st.markdown("""
 # --- 3. 로고 및 타이틀 영역 ---
 col1, col2 = st.columns([1, 9]) # 1:9 비율로 화면 분할
 with col1:
-    # 같은 폴더에 'logo.png' 파일이 있으면 로고를 띄웁니다.
-    if os.path.exists("logo.png"):
-        logo = Image.open("logo.png")
+    if os.path.exists(logo_path):
+        logo = Image.open(logo_path)
         st.image(logo, width=80)
     else:
-        st.write("🏢 **COMPANY**") # 로고 파일이 없을 때 임시 텍스트
+        st.write("🏢 **COMPANY**")
 
 with col2:
     st.title("🏪 편의점 수주업로드 자동화 시스템")
@@ -40,8 +46,8 @@ st.divider() # 가로 구분선
 
 # --- 4. 왼쪽 사이드바 (사용 설명서 및 상태 표시) ---
 with st.sidebar:
-    if os.path.exists("logo.png"):
-        st.image(Image.open("logo.png"), use_container_width=True)
+    if os.path.exists(logo_path):
+        st.image(Image.open(logo_path), use_container_width=True)
         
     st.header("💡 사용 안내")
     st.info("""
@@ -129,7 +135,6 @@ if missing_files:
     st.error("❌ GitHub 서버에 기준표(마스터 엑셀)가 없습니다! 아래 파일을 GitHub 저장소에 꼭 업로드해주세요.")
     for m in missing_files: st.write(f"- {m}")
 else:
-    # 메인 화면 업로드 창 크기 키우기
     raw_files = st.file_uploader("📥 이곳에 오늘 처리할 RAW 파일(DATA, ordview, ORDERS 등)을 모두 끌어다 놓으세요.", accept_multiple_files=True)
 
     if raw_files:
@@ -201,14 +206,46 @@ else:
                             df_final['UNIT단가'] = df_k7['UNIT단가']
                             df_final['금       액'] = df_k7['금       액']
 
-                    st.toast(f"✅ {file.name} ({platform}) 변환 성공!") # 화면 상단에 팝업으로 알림
+                    st.toast(f"✅ {file.name} ({platform}) 변환 성공!")
                     combined_dfs.append(df_final)
 
             except Exception as e:
                 st.error(f"❌ {file.name} 처리 중 오류가 발생했습니다: {e}")
 
+        # --- 잘려있던 하단 통합 데이터 합치기 및 다운로드 부분 복구 ---
         if combined_dfs:
             st.write("---")
             st.subheader("📊 편의점 통합 데이터 미리보기")
             
-            df_combined = pd.concat(combined_)
+            df_combined = pd.concat(combined_dfs, ignore_index=True)
+            df_combined['출고구분'] = 0
+            if '금       액' in df_combined.columns:
+                df_combined['부  가   세'] = (pd.to_numeric(df_combined['금       액'], errors='coerce').fillna(0) * 0.1).astype(int)
+            
+            for col in FINAL_COLUMNS:
+                if col not in df_combined.columns: df_combined[col] = ''
+            
+            df_combined = df_combined[FINAL_COLUMNS]
+            df_combined.fillna('', inplace=True)
+
+            st.dataframe(df_combined, use_container_width=True, height=400)
+            
+            df_excel = df_combined.copy()
+            df_excel.columns = REAL_COLUMNS
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_excel.to_excel(writer, index=False, sheet_name='서식')
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            _, btn_col, _ = st.columns([1, 2, 1])
+            with btn_col:
+                st.download_button(
+                    label=f"📥 통합 수주업로드 다운로드 (총 {len(df_combined)}건)",
+                    data=output.getvalue(),
+                    file_name=f"통합_수주업로드_{today_compact_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    type="primary"
+                )
