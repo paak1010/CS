@@ -179,4 +179,83 @@ if raw_files and not missing_files:
                     df_final['상품명'] = df_raw['상품코드'].apply(lambda x: products_dict.get(clean_key(x), {}).get('name', ''))
                     mask = df_final['상품명'] == ''
                     if '상품명_x' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명_x']
-                    elif '상품명' in df_raw.columns: df_final.loc[mask, '
+                    elif '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
+                    df_final['UNIT단가'] = pd.to_numeric(df_raw['발주단가'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+                    df_final['금       액'] = pd.to_numeric(df_raw['발주금액'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
+                    df_final['UNIT수량'] = (df_final['금       액'] / df_final['UNIT단가'].replace(0, 1)).astype(int)
+
+                elif platform == 'K7':
+                    records, current_order_date, current_delivery_date = [], "", ""
+                    for idx, row in df_raw.iterrows():
+                        col0 = str(row[0]).strip()
+                        if col0 == 'ORDERS':
+                            current_order_date = format_date_yyyy_mm_dd(row[4]) if len(row) > 4 else ""
+                            current_delivery_date = format_date_yyyy_mm_dd(row[7]) if len(row) > 7 else ""
+                        elif str(row[1]).strip().startswith('880') or str(row[0]).replace('.0', '').isdigit():
+                            barcode = clean_key(row[1])
+                            store = str(row[3]).strip()
+                            price = pd.to_numeric(str(row[7]).replace(',', ''), errors='coerce')
+                            total = pd.to_numeric(str(row[8]).replace(',', ''), errors='coerce')
+                            qty = int(total / price) if pd.notna(price) and price > 0 else 0
+                            records.append({'수주일자': current_order_date, '납품일자': current_delivery_date, '바코드': barcode, '점포명': store, 'UNIT단가': price if pd.notna(price) else 0, '금       액': total if pd.notna(total) else 0, 'UNIT수량': qty})
+                    
+                    df_k7 = pd.DataFrame(records)
+                    if not df_k7.empty:
+                        df_final['납품일자'] = df_k7['납품일자']
+                        df_final['수주일자'] = df_k7['수주일자']
+                        df_final['발주처코드'] = '81032000'
+                        df_final['발주처'] = "(주)코리아세븐"
+                        df_final['배송지'] = df_k7['점포명']
+                        df_final['배송코드'] = df_k7['점포명'].apply(lambda x: stores_dict.get(clean_key(x), ''))
+                        df_final['상품코드'] = df_k7['바코드'].apply(lambda x: products_dict.get(x, {}).get('mecode', ''))
+                        df_final['상품명'] = df_k7['바코드'].apply(lambda x: products_dict.get(x, {}).get('name', ''))
+                        df_final['UNIT수량'] = df_k7['UNIT수량']
+                        df_final['UNIT단가'] = df_k7['UNIT단가']
+                        df_final['금       액'] = df_k7['금       액']
+
+                st.toast(f"✅ {file.name} ({platform}) 변환 성공!")
+                combined_dfs.append(df_final)
+
+        except Exception as e:
+            st.error(f"❌ {file.name} 처리 중 오류가 발생했습니다: {e}")
+
+    if combined_dfs:
+        st.write("---")
+        st.subheader("📊 편의점 통합 데이터 미리보기")
+        
+        df_combined = pd.concat(combined_dfs, ignore_index=True)
+        df_combined['출고구분'] = 0
+        if '금       액' in df_combined.columns:
+            df_combined['부  가   세'] = (pd.to_numeric(df_combined['금       액'], errors='coerce').fillna(0) * 0.1).astype(int)
+        
+        for col in FINAL_COLUMNS:
+            if col not in df_combined.columns: df_combined[col] = ''
+        
+        df_combined = df_combined[FINAL_COLUMNS]
+        df_combined.fillna('', inplace=True)
+
+        st.dataframe(df_combined, use_container_width=True, height=400)
+        
+        df_excel = df_combined.copy()
+        df_excel.columns = REAL_COLUMNS
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_excel.to_excel(writer, index=False, sheet_name='서식')
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        _, btn_col, _ = st.columns([1, 2, 1])
+        with btn_col:
+            st.download_button(
+                label=f"📥 통합 수주업로드 일괄 다운로드 (총 {len(df_combined)}건)",
+                data=output.getvalue(),
+                file_name=f"통합_수주업로드_{today_compact_str}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                type="primary"
+            )
+
+# --- 6. 하단 개발자 서명 ---
+st.markdown("<br><br><br>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #a0a0a0; font-size: 0.9rem; font-family: sans-serif;'>developed by Jay</div>", unsafe_allow_html=True)
