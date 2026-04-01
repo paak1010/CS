@@ -5,15 +5,19 @@ import io
 import os
 import re
 
-# --- 1. 웹 로고 주소 설정 ---
 import streamlit as st
 
 LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
 
-# use_container_width=True를 쓰거나 width 값을 숫자로 지정하세요.
-st.sidebar.image(LOGO_URL, width=250) 
-
-st.sidebar.title("메뉴")
+# 사이드바에 HTML 스타일 적용
+st.sidebar.markdown(
+    f"""
+    <div style="display: flex; justify-content: center;">
+        <img src="{LOGO_URL}" style="width: 100%; max-width: 300px; margin-bottom: 20px;">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- 2. 페이지 기본 설정 (사이드바 기본 닫힘 적용!) ---
 st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide", initial_sidebar_state="collapsed")
