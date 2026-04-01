@@ -16,7 +16,7 @@ st.markdown(
     """
     <style>
         [data-testid="stLogo"] {
-            height: 5rem;
+            height: 10rem;
         }
     </style>
     """,
