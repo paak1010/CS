@@ -6,7 +6,24 @@ import os
 import re
 
 # --- 1. 웹 로고 주소 설정 ---
+import streamlit as st
+
+# 로고 URL
 LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
+
+# CSS 주입: 로고 이미지의 높이를 강제로 조절 (기본값은 보통 2rem 내외)
+st.markdown(
+    """
+    <style>
+        [data-testid="stLogo"] {
+            height: 5rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.logo(LOGO_URL)
 
 # --- 2. 페이지 기본 설정 (사이드바 기본 닫힘 적용!) ---
 st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide", initial_sidebar_state="collapsed")
