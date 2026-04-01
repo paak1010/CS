@@ -5,59 +5,74 @@ import io
 import os
 import re
 
-# --- 1. 페이지 기본 설정 (가장 먼저 호출해야 함!) ---
-st.set_page_config(
-    page_title="편의점 수주업로드 시스템", 
-    page_icon="🏪", 
-    layout="wide", 
-    initial_sidebar_state="expanded" # 로고를 보여줘야 하니 기본적으로 열어두는게 좋습니다
-)
+# [필수] 1. 페이지 설정 (무조건 맨 위)
+st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide")
 
-# --- 2. 로고 및 상수 설정 ---
+# 2. 상수 및 컬럼 양식 정의 (이게 정확해야 양식이 바뀝니다)
 LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
+FINAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금      액', '부  가   세', 'LOT', '특이사항1', 'Type', '특이사항2']
+REAL_COLUMNS = ['출고구분', '수주일자', '납품일자', '발주처코드', '발주처', '배송코드', '배송지', '상품코드', '상품명', 'UNIT수량', 'UNIT단가', '금      액', '부  가   세', 'LOT', '특이사항', 'Type', '특이사항']
 
-# --- 3. 커스텀 CSS ---
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;} 
-    footer {visibility: hidden;}    
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 4. 왼쪽 사이드바 구성 (로고 + 설정 + 안내) ---
+# 3. 사이드바 로고 및 안내
 with st.sidebar:
-    # 로고 배치
     st.image(LOGO_URL, use_container_width=True)
     st.divider()
-    
-    # 작업 설정 영역
     st.subheader("⚙️ 작업 설정")
-    # 메인 화면에 있던 로직을 사이드바 전용으로 이동하거나 통일
-    st.info("""
-    **💡 사용 안내**
-    1. 각 편의점 사이트 데이터 다운로드
-    2. GS/세븐일레븐: .xlsx로 변환 필수
-    3. 파일을 우측 업로드 창에 드래그
-    """)
-    
-    st.success("✅ **마스터 파일 연동 완료**")
-    st.caption("※ 모든 수주일자는 오늘 날짜로 자동 세팅됩니다.")
+    st.info("1. 파일 업로드 시 자동 변환\n2. 하단 다운로드 버튼 클릭")
     st.caption("Developed by Jay")
 
-# --- 5. 메인 타이틀 영역 ---
+# 4. 메인 타이틀
 st.title("🏪 편의점 수주업로드 자동화 시스템")
-st.markdown("편의점 3사(BGF, GS, 세븐일레븐) Raw Data를 사내 표준 양식으로 자동 변환합니다.")
-st.divider() 
+st.divider()
 
-# --- 6. 데이터 처리 로직 (나머지는 기존 코드와 동일) ---
-# ... (이후 FINAL_COLUMNS 설정 및 파일 업로더 로직을 여기에 배치하세요)
+# 5. 파일 업로드
+raw_files = st.file_uploader("RAW 파일들을 업로드하세요.", accept_multiple_files=True)
 
-# 예시: 업로드 영역
-st.subheader("📥 원본(RAW) 파일 업로드")
-raw_files = st.file_uploader("오늘 처리할 RAW 파일들을 한 번에 모두 끌어다 놓으세요.", accept_multiple_files=True)
+if raw_files:
+    combined_dfs = []
+    
+    for file in raw_files:
+        # --- 여기에 본인의 detect_and_load 및 데이터 처리 로직이 들어갑니다 ---
+        # (편의상 예시 데이터 프레임을 생성하는 구조로 설명드립니다)
+        # 중요: 각 플랫폼(BGF, GS, K7)별로 추출한 df_final을 만든 후...
+        
+        # 임시 예시 (본인 로직에서 나온 결과라고 가정)
+        df_temp = pd.DataFrame(columns=['상품코드', 'UNIT수량']) # 실제 데이터가 담긴 DF
+        # ... 데이터 처리 로직 수행 ...
+        
+        combined_dfs.append(df_temp)
 
-# ... (나머지 처리 로직 생략)
+    if combined_dfs:
+        # 모든 데이터 통합
+        df_combined = pd.concat(combined_dfs, ignore_index=True)
+        
+        # [핵심] 양식 강제 맞춤 로직
+        # 1. 없는 컬럼은 빈 값으로 생성
+        for col in FINAL_COLUMNS:
+            if col not in df_combined.columns:
+                df_combined[col] = ""
+        
+        # 2. 정해진 순서대로 컬럼 재배치
+        df_combined = df_combined[FINAL_COLUMNS]
+        
+        # 3. 다운로드용 파일 생성 시 컬럼명 변경 (REAL_COLUMNS 적용)
+        df_excel = df_combined.copy()
+        df_excel.columns = REAL_COLUMNS # 여기서 최종 엑셀 양식 이름으로 바뀜
+        
+        # 미리보기
+        st.subheader("📊 변환 데이터 확인")
+        st.dataframe(df_excel, use_container_width=True)
+        
+        # 엑셀 변환 (xlsxwriter 사용)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_excel.to_excel(writer, index=False, sheet_name='서식')
+        
+        # 다운로드 버튼
+        st.download_button(
+            label="📥 통합 양식 다운로드",
+            data=output.getvalue(),
+            file_name=f"통합_수주업로드_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary"
+        )
