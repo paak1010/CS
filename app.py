@@ -7,12 +7,24 @@ import re
 
 import streamlit as st
 
+# 로고 URL
 LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
 
-# width에 원하는 픽셀 값을 입력 (예: 200, 250 등)
-st.sidebar.image(LOGO_URL, width=250)
+# 1. 사이드바 최상단에 로고 배치
+# use_container_width=True는 사이드바 가로폭에 꽉 채우라는 뜻입니다.
+st.sidebar.image(LOGO_URL, use_container_width=True)
 
-st.sidebar.title("Sidebar Menu")
+# 2. 로고와 아래 내용 사이의 간격을 위해 구분선 하나 넣어주면 예쁩니다.
+st.sidebar.divider()
+
+# 3. 그 아래에 '작업 설정' 등 본문의 내용을 구성하세요.
+st.sidebar.subheader("⚙️ 작업 설정")
+uploaded_file = st.sidebar.file_uploader("올리브영 발주 엑셀 업로드", type=['xlsx'])
+
+# 하단 텍스트 (이미지처럼 아래에 배치하고 싶을 때)
+st.sidebar.markdown("---")
+st.sidebar.caption("💡 자동 부분 할당 및 재고 차감 적용")
+st.sidebar.caption("Developed by Jay")
 # --- 2. 페이지 기본 설정 (사이드바 기본 닫힘 적용!) ---
 st.set_page_config(page_title="편의점 수주업로드 시스템", page_icon="🏪", layout="wide", initial_sidebar_state="collapsed")
 
