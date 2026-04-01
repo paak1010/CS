@@ -9,7 +9,6 @@ import re
 import streamlit as st
 
 # 로고 URL
-LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
 
 # CSS 주입: 로고 이미지의 높이를 강제로 조절 (기본값은 보통 2rem 내외)
 st.markdown(
