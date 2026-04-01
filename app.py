@@ -7,12 +7,10 @@ import re
 
 import streamlit as st
 
-# 로고 URL
-LOGO_URL = "https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
-
 # 1. 사이드바 최상단에 로고 배치
 # use_container_width=True는 사이드바 가로폭에 꽉 채우라는 뜻입니다.
-st.sidebar.image(LOGO_URL, use_container_width=True)
+st.sidebar.image("https://tse2.mm.bing.net/th/id/OIP.Yoy5rHyBGX6zIO_Tf0Cg_AHaBW?rs=1&pid=ImgDetMain&o=7&rm=3"
+, use_container_width=True)
 
 # 2. 로고와 아래 내용 사이의 간격을 위해 구분선 하나 넣어주면 예쁩니다.
 st.sidebar.divider()
