@@ -23,7 +23,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. 로고 및 타이틀 영역 (비율 조정으로 덮어짐 방지) ---
+# --- 4. 로고 및 타이틀 영역 ---
 col1, col2 = st.columns([1.5, 8.5])
 with col1:
     st.image(LOGO_URL, use_container_width=True) 
@@ -73,25 +73,39 @@ def find_file(keyword):
 
 @st.cache_data
 def load_brain():
-    products, stores, missing = {}, {}, []
-    bgf_file, gs_file, k7_file = find_file('BGF'), find_file('지에스'), find_file('코리아세븐')
+    # 💡 편의점별로 딕셔너리를 분리하여 덮어쓰기 방지
+    products = {'BGF': {}, 'GS': {}, 'K7': {}}
+    stores = {'BGF': {}, 'GS': {}, 'K7': {}}
+    missing = []
     
-    if not bgf_file: missing.append('BGF 서식 엑셀 (이름에 "BGF" 포함 요망)')
-    if not gs_file: missing.append('GS 서식 엑셀 (이름에 "지에스" 포함 요망)')
-    if not k7_file: missing.append('코리아세븐 서식 엑셀 (이름에 "코리아세븐" 포함 요망)')
+    files_info = [
+        ('BGF', find_file('BGF'), 'BGF 서식 엑셀 (이름에 "BGF" 포함 요망)'),
+        ('GS', find_file('지에스'), 'GS 서식 엑셀 (이름에 "지에스" 포함 요망)'),
+        ('K7', find_file('코리아세븐'), '코리아세븐 서식 엑셀 (이름에 "코리아세븐" 포함 요망)')
+    ]
 
-    for f in [bgf_file, gs_file, k7_file]:
-        if not f: continue
+    for platform, f, msg in files_info:
+        if not f: 
+            missing.append(msg)
+            continue
+            
         xls = pd.ExcelFile(f)
         for sheet in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet, dtype=str)
             df.columns = df.columns.astype(str).str.strip() 
+            
             if '바코드' in df.columns and '제품코드' in df.columns:
                 for _, r in df.dropna(subset=['바코드']).iterrows():
-                    products[clean_key(r['바코드'])] = {'mecode': str(r['제품코드']).strip(), 'name': str(r['상품명']).strip() if '상품명' in df.columns else ''}
+                    # 해당 플랫폼 방에만 데이터 저장
+                    products[platform][clean_key(r['바코드'])] = {
+                        'mecode': str(r['제품코드']).strip(), 
+                        'name': str(r['상품명']).strip() if '상품명' in df.columns else ''
+                    }
+                    
             if '점포명' in df.columns and '점포코드' in df.columns:
                 for _, r in df.dropna(subset=['점포명']).iterrows():
-                    stores[clean_key(r['점포명'])] = str(r['점포코드']).replace('.0','').strip()
+                    stores[platform][clean_key(r['점포명'])] = str(r['점포코드']).replace('.0','').strip()
+                    
     return products, stores, missing
 
 def detect_and_load(file):
@@ -139,10 +153,10 @@ if raw_files and not missing_files:
                     df_final['수주일자'] = today_date_str
                     df_final['발주처'] = df_raw['센터명'].astype(str).str.strip()
                     df_final['배송지'] = df_final['발주처']
-                    df_final['발주처코드'] = df_raw['센터명'].apply(lambda x: stores_dict.get(clean_key(x), ''))
+                    df_final['발주처코드'] = df_raw['센터명'].apply(lambda x: stores_dict['BGF'].get(clean_key(x), ''))
                     df_final['배송코드'] = df_final['발주처코드']
-                    df_final['상품코드'] = df_raw['상품 코드'].apply(lambda x: products_dict.get(clean_key(x), {}).get('mecode', ''))
-                    df_final['상품명'] = df_raw['상품 코드'].apply(lambda x: products_dict.get(clean_key(x), {}).get('name', ''))
+                    df_final['상품코드'] = df_raw['상품 코드'].apply(lambda x: products_dict['BGF'].get(clean_key(x), {}).get('mecode', ''))
+                    df_final['상품명'] = df_raw['상품 코드'].apply(lambda x: products_dict['BGF'].get(clean_key(x), {}).get('name', ''))
                     mask = df_final['상품명'] == ''
                     if '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
                     df_final['UNIT수량'] = pd.to_numeric(df_raw['총수량'].astype(str).str.replace(',', ''), errors='coerce').fillna(0).astype(int)
@@ -155,10 +169,10 @@ if raw_files and not missing_files:
                     if '납품처' in df_raw.columns: df_final['발주처'] = df_raw['납품처'].astype(str).str.strip()
                     else: df_final['발주처'] = df_raw['배송처'].astype(str).str.strip()
                     df_final['배송지'] = df_final['발주처']
-                    df_final['발주처코드'] = df_final['발주처'].apply(lambda x: stores_dict.get(clean_key(x), ''))
+                    df_final['발주처코드'] = df_final['발주처'].apply(lambda x: stores_dict['GS'].get(clean_key(x), ''))
                     df_final['배송코드'] = df_final['발주처코드']
-                    df_final['상품코드'] = df_raw['상품코드'].apply(lambda x: products_dict.get(clean_key(x), {}).get('mecode', ''))
-                    df_final['상품명'] = df_raw['상품코드'].apply(lambda x: products_dict.get(clean_key(x), {}).get('name', ''))
+                    df_final['상품코드'] = df_raw['상품코드'].apply(lambda x: products_dict['GS'].get(clean_key(x), {}).get('mecode', ''))
+                    df_final['상품명'] = df_raw['상품코드'].apply(lambda x: products_dict['GS'].get(clean_key(x), {}).get('name', ''))
                     mask = df_final['상품명'] == ''
                     if '상품명_x' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명_x']
                     elif '상품명' in df_raw.columns: df_final.loc[mask, '상품명'] = df_raw.loc[mask, '상품명']
@@ -187,9 +201,9 @@ if raw_files and not missing_files:
                         df_final['발주처코드'] = '81032000'
                         df_final['발주처'] = "(주)코리아세븐"
                         df_final['배송지'] = df_k7['점포명']
-                        df_final['배송코드'] = df_k7['점포명'].apply(lambda x: stores_dict.get(clean_key(x), ''))
-                        df_final['상품코드'] = df_k7['바코드'].apply(lambda x: products_dict.get(x, {}).get('mecode', ''))
-                        df_final['상품명'] = df_k7['바코드'].apply(lambda x: products_dict.get(x, {}).get('name', ''))
+                        df_final['배송코드'] = df_k7['점포명'].apply(lambda x: stores_dict['K7'].get(clean_key(x), ''))
+                        df_final['상품코드'] = df_k7['바코드'].apply(lambda x: products_dict['K7'].get(x, {}).get('mecode', ''))
+                        df_final['상품명'] = df_k7['바코드'].apply(lambda x: products_dict['K7'].get(x, {}).get('name', ''))
                         df_final['UNIT수량'] = df_k7['UNIT수량']
                         df_final['UNIT단가'] = df_k7['UNIT단가']
                         df_final['금        액'] = df_k7['금        액']
